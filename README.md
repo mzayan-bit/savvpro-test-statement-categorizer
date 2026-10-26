@@ -15,6 +15,7 @@ LedgerLens deliberately abstains when the description does not justify a decisio
 - Persistent manual corrections, reset to the original engine decision, and an audit history.
 - Duplicate warnings with explicit keep/exclude/undo actions; at least one copy must remain.
 - Backend-only accounting, checked reconciliation invariants, and matching CSV exports.
+- Consistent transaction/totals snapshots, stale-edit protection, and an explicit reload recovery action.
 - Search, review filters, next-review navigation, responsive layouts, and synthetic examples.
 - Local SQLite storage; no runtime LLM, bank connection, account, or paid service.
 

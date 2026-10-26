@@ -87,3 +87,9 @@ export type ReviewPatch = {
   duplicate_action?: "keep" | "exclude" | "reset";
   version: number;
 };
+
+export type Workspace = {
+  statement: Statement;
+  transactions: Transaction[];
+  summary: Summary;
+};

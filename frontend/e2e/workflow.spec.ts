@@ -210,13 +210,11 @@ test("last unresolved transaction never reports review completion prematurely", 
   await page
     .getByRole("button", { name: "Import your first statement" })
     .click();
-  await page
-    .getByLabel("Choose CSV file")
-    .setInputFiles({
-      name: "one.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from("Date,Description,Amount\n2026-10-01,UNKNOWN,-10"),
-    });
+  await page.getByLabel("Choose CSV file").setInputFiles({
+    name: "one.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Date,Description,Amount\n2026-10-01,UNKNOWN,-10"),
+  });
   await page.getByLabel("I checked the columns").check();
   await page.getByRole("button", { name: "Import & categorize" }).click();
   await page.getByRole("button", { name: "Start reviewing" }).click();
@@ -232,4 +230,105 @@ test("last unresolved transaction never reports review completion prematurely", 
   await expect(
     page.getByRole("heading", { name: "Every transaction accounted for." }),
   ).toHaveCount(0);
+});
+
+test("mobile stale edit error is visible in the panel and reload preserves the newer decision", async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const response = await request.post("/api/statements", {
+    multipart: {
+      file: {
+        name: "conflict.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from("Date,Description,Amount\n2026-10-01,UNKNOWN,-10"),
+      },
+      options: JSON.stringify({
+        date_column: "Date",
+        description_column: "Description",
+        amount_column: "Amount",
+        mode: "signed",
+        date_format: "iso",
+        sign_convention: "negative_outgoing",
+        currency: "USD",
+      }),
+    },
+  });
+  const sid = (await response.json()).statement.id;
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start reviewing" }).click();
+  const row = (
+    await (await request.get(`/api/statements/${sid}/transactions`)).json()
+  ).items[0];
+  await request.patch(`/api/transactions/${row.id}/review`, {
+    data: {
+      version: row.version,
+      action: "save",
+      kind: "expense",
+      category: "office",
+    },
+  });
+  await page
+    .getByRole("combobox", { name: "Category", exact: true })
+    .selectOption("meals");
+  await page.getByRole("button", { name: "Save classification" }).click();
+  const panel = page.getByRole("complementary", { name: "Transaction review" });
+  await expect(panel.getByRole("alert")).toContainText(
+    "This transaction changed",
+  );
+  await expect(panel.getByRole("alert")).toBeInViewport();
+  await panel
+    .getByRole("button", { name: "Reload transaction and totals" })
+    .click();
+  await expect(
+    panel.getByRole("combobox", { name: "Category", exact: true }),
+  ).toHaveValue("office");
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+});
+
+test("delete dialog contains keyboard focus, Escape cancels and returns focus to its trigger", async ({
+  page,
+  request,
+}) => {
+  await request.post("/api/statements", {
+    multipart: {
+      file: {
+        name: "keyboard.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from("Date,Description,Amount\n2026-10-01,FIGMA,-10"),
+      },
+      options: JSON.stringify({
+        date_column: "Date",
+        description_column: "Description",
+        amount_column: "Amount",
+        mode: "signed",
+        date_format: "iso",
+        sign_convention: "negative_outgoing",
+        currency: "USD",
+      }),
+    },
+  });
+  await page.goto("/");
+  const trigger = page.getByRole("button", {
+    name: "Delete statement",
+    exact: true,
+  });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Delete this statement?" });
+  await expect(
+    dialog.getByRole("button", { name: "Keep statement" }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    dialog.getByRole("button", { name: "Delete statement", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    dialog.getByRole("button", { name: "Keep statement" }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect((await (await request.get("/api/statements")).json()).length).toBe(1);
 });

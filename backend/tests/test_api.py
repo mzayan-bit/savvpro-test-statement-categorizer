@@ -238,3 +238,45 @@ def test_concurrent_stale_updates_allow_exactly_one_winner(client):
         outcomes = list(pool.map(update, ["office", "software"]))
     assert sorted(outcomes) == [200, 409]
     assert len(client.get(f"/api/transactions/{row['id']}/history").json()) == 1
+
+
+def test_reviewed_export_cannot_mix_rows_with_a_later_review_state(client, monkeypatch):
+    import app.main as main_module
+    from app.domain import ReviewRequest
+    from app.service import review_transaction
+
+    sid = upload(client, "2026-10-01,UNKNOWN,-10").json()["statement"]["id"]
+    original = main_module.get_transactions
+    changed = False
+
+    def read_then_concurrent_edit(conn, statement_id):
+        nonlocal changed
+        result = original(conn, statement_id)
+        if not changed:
+            changed = True
+            row = result[0]
+            review_transaction(
+                row["id"],
+                ReviewRequest(
+                    action="save", kind="expense", category="other", version=row["version"]
+                ),
+            )
+        return result
+
+    monkeypatch.setattr(main_module, "get_transactions", read_then_concurrent_edit)
+    response = client.get(f"/api/statements/{sid}/export?reviewed_only=true")
+    assert response.status_code == 409  # The exported rows were still unresolved when read.
+    assert not client.get(f"/api/statements/{sid}/summary").json()["provisional"]
+
+
+def test_workspace_snapshot_totals_match_returned_rows(client):
+    from app.summaries import summarize
+
+    sid = upload(client, "2026-10-01,FIGMA,-10\n2026-10-02,UNKNOWN,-5").json()["statement"]["id"]
+    row = rows(client, sid)[1]
+    patch(client, row, action="save", kind="expense", category="meals")
+    workspace = client.get(f"/api/statements/{sid}/workspace").json()
+    assert workspace["statement"]["id"] == sid
+    assert workspace["summary"]["totals"] == summarize(workspace["transactions"])["totals"]
+    assert workspace["summary"]["totals"]["net_expense_minor"] == 1500
+    assert not workspace["summary"]["provisional"]

@@ -1661,16 +1661,7 @@ progress::-moz-progress-bar {
 .toast .icon-button {
   color: #5f6d58;
 }
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  background: #1d2c2466;
-  backdrop-filter: blur(3px);
-  display: grid;
-  place-items: center;
-  padding: 24px;
-}
+
 .modal {
   max-width: 440px;
   padding: 30px;
@@ -2444,4 +2435,20 @@ progress::-moz-progress-bar {
   .sidebar > button.nav-item:first-of-type {
     display: none;
   }
+}
+
+.modal::backdrop {
+  background: #1d2c2466;
+  backdrop-filter: blur(3px);
+}
+.modal {
+  width: min(440px, calc(100vw - 40px));
+  color: var(--ink);
+}
+.review-error {
+  margin-bottom: 20px;
+}
+.review-error .error-notice {
+  font-size: 11px;
+  margin-bottom: 8px;
 }

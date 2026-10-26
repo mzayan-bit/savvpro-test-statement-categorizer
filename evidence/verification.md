@@ -1,27 +1,29 @@
 # Verification record
 
-Executed on **26 October 2026**, with final release verification beginning at approximately **17:51 PKT**. These are local observations, not claims about hosted CI or other machines.
+Executed on **26 October 2026**, with the fresh-install rehearsal beginning at approximately **17:51 PKT** and final hardening checks at **18:22 PKT**. These are local observations, not claims about hosted CI or other machines.
 
 ## Executed results
 
 | Check | Observed result |
 |---|---|
-| `python -m pytest backend/tests -q` | **100 passed**, one upstream Starlette HTTPX-adapter deprecation warning |
+| `python -m pytest backend/tests -q` | **102 passed**, one upstream Starlette HTTPX-adapter deprecation warning |
 | `ruff check backend` | Passed |
 | `ruff format --check backend` | 14 files already formatted |
 | `npm run check` | TypeScript strict compilation passed |
 | `npm run test` | **4 passed** |
 | `npm run build` | Production build passed |
-| `npm run test:e2e` | **6 passed**, including desktop/mobile and axe accessibility |
+| `npm run test:e2e` | **8 passed**, including desktop/mobile and axe accessibility |
 | `pip check` | No broken requirements |
 | Clean `npm ci` dependency audit | 0 vulnerabilities reported |
 | `git diff --check` | Passed |
 
-The browser suite uses Chromium against a real FastAPI server and temporary SQLite database. It verifies import and review, saved corrections after refresh, reset, duplicate keep/exclude, actual file download, atomic invalid-import rejection, mobile layout, complete final review/export, and the last-unresolved-item regression. The accessibility scenario runs axe WCAG A/AA rules across five UI stages; no automated violations were reported. This is not a claim of complete assistive-technology certification.
+The browser suite uses Chromium against a real FastAPI server and temporary SQLite database. It verifies import and review, saved corrections after refresh, reset, duplicate keep/exclude, actual file download, atomic invalid-import rejection, mobile layout, complete final review/export, the last-unresolved-item regression, mobile stale-edit recovery, and delete-dialog keyboard cycling/Escape/focus restoration. The accessibility scenario runs axe WCAG A/AA rules across five UI stages; no automated violations were reported. This is not a claim of complete assistive-technology certification.
+
+The final hardening suite adds a reproduced concurrent-export regression and a workspace snapshot consistency test. Before the fix, a reviewed export could return unresolved older rows after checking a newer summary; it now rejects that request. All prior tests remain intact.
 
 ## Clean-install rehearsal
 
-A separate temporary source copy was created without `.git`, `.venv`, `node_modules`, compiled assets, application databases, or test caches. A **new virtual environment** installed the pinned Python requirements, and **`npm ci`** installed the lockfile. The production build, all 100 backend tests, Ruff checks, and formatting check succeeded in that copy. No private environment variables or external accounts were required. Strict TypeScript checks, all 4 frontend unit tests, and all 6 browser/accessibility tests also passed in that fresh copy. The browser suite launches and initializes its own fresh database.
+A separate temporary source copy was created without `.git`, `.venv`, `node_modules`, compiled assets, application databases, or test caches. A **new virtual environment** installed the pinned Python requirements, and **`npm ci`** installed the lockfile. The production build, all 100 backend tests, Ruff checks, and formatting check succeeded in that copy. No private environment variables or external accounts were required. Strict TypeScript checks, all 4 frontend unit tests, and all 6 browser/accessibility tests also passed in that fresh copy. The browser suite launches and initializes its own fresh database. This clean dependency-install rehearsal preceded the final snapshot/dialog changes; those changes introduce no dependencies or schema changes and passed the full 102/4/8 suite in the primary checkout.
 
 Environment: macOS/ARM64, Python 3.14.4, Node 26.0.0, npm 11.12.1. The declared dependency metadata supports Python 3.12+. CI is configured for Python 3.12 and Node 22, but hosted CI has **not** run before publication; Windows/Linux were not manually verified here.
 

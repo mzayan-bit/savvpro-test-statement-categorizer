@@ -9,8 +9,8 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { money } from "./api";
-import { StatusBadge } from "./components";
+import { money, type ApiError } from "./api";
+import { ErrorNotice, StatusBadge } from "./components";
 import type { CategoryData, Kind, ReviewPatch, Transaction } from "./types";
 
 type Props = {
@@ -18,6 +18,8 @@ type Props = {
   currency: string;
   categories: CategoryData;
   busy: boolean;
+  error: ApiError | null;
+  onReload: () => void;
   onSave: (patch: ReviewPatch) => Promise<void>;
   onClose: () => void;
   onNext: () => void;
@@ -36,6 +38,8 @@ export default function ReviewPanel({
   currency,
   categories,
   busy,
+  error,
+  onReload,
   onSave,
   onClose,
   onNext,
@@ -44,6 +48,10 @@ export default function ReviewPanel({
   const [kind, setKind] = useState<Kind>(row.kind);
   const [category, setCategory] = useState(row.category);
   const closeButton = useRef<HTMLButtonElement>(null);
+  const errorRegion = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) errorRegion.current?.scrollIntoView({ block: "nearest" });
+  }, [error]);
   useEffect(() => {
     closeButton.current?.focus();
   }, [row.id]);
@@ -77,6 +85,14 @@ export default function ReviewPanel({
           <X size={18} />
         </button>
       </div>
+      {error && (
+        <div className="review-error" ref={errorRegion}>
+          <ErrorNotice error={error} />
+          <button className="text-button" disabled={busy} onClick={onReload}>
+            Reload transaction and totals
+          </button>
+        </div>
+      )}
       <div className="merchant-symbol">
         <Fingerprint size={27} />
       </div>

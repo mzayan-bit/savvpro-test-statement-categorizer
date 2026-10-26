@@ -2,7 +2,7 @@
 
 ## Tools and scope
 
-The candidate used **OpenAI Codex**, with the session reporting **`gpt-6-astra` / medium reasoning**, to assist with planning, code generation, tests, UI implementation, debugging, documentation, and local Git work. The candidate chose the assessment direction and CSV scope, supplied priorities, authenticated GitHub, created the fork manually, and required explicit approval before remote publishing.
+The candidate used **OpenAI Codex**, with session metadata reporting **`gpt-6-astra`** and both **medium and low reasoning** settings across turns, to assist with planning, code generation, tests, UI implementation, debugging, documentation, and local Git work. The candidate chose the assessment direction and CSV scope, supplied priorities, authenticated GitHub, created the fork manually, and required explicit approval before remote publishing.
 
 No extra coding agents were intentionally spawned. The application itself makes **no LLM, embedding, speech-model, or external categorization calls**. Classification is inspectable Python code and versioned rule data.
 
@@ -26,8 +26,10 @@ See `evidence/verification.md` for the recorded executed results. Configuring CI
 4. **Low contrast:** the initial muted text palette failed an axe contrast check. The palette was darkened and supporting text enlarged; accessibility checks were rerun, rather than disabled.
 5. **Working-directory mistakes:** two edit commands used a root-relative filename while already inside the frontend directory, so they failed without changing that file. The edits were reapplied from the correct directory and verification rerun.
 6. **Raw input fidelity:** review identified that parsing stripped description whitespace. The implementation was corrected to retain raw descriptions and a regression test added.
-
 7. **Last-item review navigation:** the final audit found that selecting “Next review” on the only remaining unresolved item could incorrectly announce completion. The handler now keeps that item open and explains that it must be resolved; a real-browser regression test verifies this.
+
+8. **Concurrent export consistency:** a regression test reproduced a final export accepting older unresolved rows after a concurrent correction. Explicit read snapshots and aggregation from the exported rows fixed the race; the test now passes.
+9. **Dialog keyboard behavior:** browser tests showed that native modal behavior alone allowed Tab to leave its buttons and failed to restore the trigger focus after unmounting. Explicit button cycling and layout-effect focus restoration fixed both failures.
 
 These are observed development events, not hypothetical examples. A successful build was never treated as sufficient proof of runtime correctness.
 

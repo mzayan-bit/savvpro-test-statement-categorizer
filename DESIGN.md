@@ -74,7 +74,7 @@ Cross-statement matching is excluded because repeat purchases, overlapping expor
 
 ## Review integrity
 
-A transaction keeps its original engine decision alongside effective kind/category, review state, duplicate disposition, and a monotonically increasing version. Review requests include that version. Stale updates return HTTP 409 instead of silently overwriting another tab's correction.
+A transaction keeps its original engine decision alongside effective kind/category, review state, duplicate disposition, and a monotonically increasing version. Review requests include that version. Stale updates return HTTP 409 instead of silently overwriting another tab's correction. The review panel keeps the error visible on mobile and provides a reload action that retrieves the newer decision and totals without resubmitting the stale edit.
 
 Saving, resetting, or changing duplicate disposition is transactional and appends a before/after audit event. Reset restores the original engine classification; it does not erase audit history or implicitly change duplicate disposition. No background reclassification overwrites manual decisions.
 
@@ -100,7 +100,7 @@ An unresolved item cannot leak into accepted category totals. “Provisional” 
 
 FastAPI exposes typed import options and review requests; `/docs` supplies the generated API contract. Primary endpoints are preview, statements, transactions, review, history, summary, and export. SQLite foreign keys cascade only during an explicit statement deletion. Startup creates missing tables and refuses unknown newer schema versions; it does not drop or reset data.
 
-SQLite uses WAL mode, bounded lock waits, parameterized queries, and request-scoped connections. The single-user scope does not justify an ORM/migration framework. A future schema change would require an explicit versioned migration rather than destructive reinitialization.
+SQLite uses WAL mode, bounded lock waits, parameterized queries, and request-scoped connections. Related reads run in explicit read transactions. The workspace endpoint returns rows and their computed summary in one snapshot; the UI publishes them together. Export completion checks and CSV generation use exactly the same row set, so a concurrent correction cannot authorize a final export containing older unresolved rows. Separate downloads reflect their individual request times. The single-user scope does not justify an ORM/migration framework. A future schema change would require an explicit versioned migration rather than destructive reinitialization.
 
 ## Security and privacy
 

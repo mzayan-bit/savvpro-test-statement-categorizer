@@ -24,6 +24,7 @@ import { api, ApiError, download, money } from "./api";
 import { ErrorNotice, StatusBadge } from "./components";
 import ImportWizard from "./ImportWizard";
 import ReviewPanel from "./ReviewPanel";
+import DeleteDialog from "./DeleteDialog";
 import type {
   CategoryData,
   ReviewPatch,
@@ -31,6 +32,7 @@ import type {
   StatementEntry,
   Summary,
   Transaction,
+  Workspace,
 } from "./types";
 
 const PAGE_SIZE = 40;
@@ -64,16 +66,10 @@ export default function App() {
     setSelectedId(null);
     setDeleteConfirm(false);
     try {
-      const [meta, report, rows] = await Promise.all([
-        api<Statement>(`/statements/${id}`),
-        api<Summary>(`/statements/${id}/summary`),
-        api<{ items: Transaction[] }>(
-          `/statements/${id}/transactions?limit=5000`,
-        ),
-      ]);
-      setStatement(meta);
-      setSummary(report);
-      setTransactions(rows.items);
+      const snapshot = await api<Workspace>(`/statements/${id}/workspace`);
+      setStatement(snapshot.statement);
+      setSummary(snapshot.summary);
+      setTransactions(snapshot.transactions);
       setImporting(false);
       setStatus("all");
       setSearch("");
@@ -135,20 +131,17 @@ export default function App() {
     setSaving(true);
     setError(null);
     try {
-      const updated = await api<Transaction>(
-        `/transactions/${selected.id}/review`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(patch),
-        },
+      await api<Transaction>(`/transactions/${selected.id}/review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const snapshot = await api<Workspace>(
+        `/statements/${statement.id}/workspace`,
       );
-      const report = await api<Summary>(`/statements/${statement.id}/summary`);
-      // Publish the changed row and its authoritative totals together.
-      setTransactions((items) =>
-        items.map((row) => (row.id === updated.id ? updated : row)),
-      );
-      setSummary(report);
+      // Rows and totals are one database snapshot, including edits from other tabs.
+      setTransactions(snapshot.transactions);
+      setSummary(snapshot.summary);
       await refreshList();
       setNotice(
         patch.action === "reset"
@@ -157,6 +150,22 @@ export default function App() {
             ? "Duplicate decision saved. Totals updated."
             : "Classification saved. Totals updated.",
       );
+    } catch (e) {
+      setError(asError(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function reloadReview() {
+    if (!statement) return;
+    setSaving(true);
+    try {
+      const snapshot = await api<Workspace>(
+        `/statements/${statement.id}/workspace`,
+      );
+      setTransactions(snapshot.transactions);
+      setSummary(snapshot.summary);
+      setError(null);
     } catch (e) {
       setError(asError(e));
     } finally {
@@ -741,6 +750,8 @@ export default function App() {
                     currency={currency}
                     categories={categories}
                     busy={saving}
+                    error={error}
+                    onReload={() => void reloadReview()}
                     onSave={saveReview}
                     onClose={() => setSelectedId(null)}
                     onNext={nextReview}
@@ -889,38 +900,12 @@ export default function App() {
         </div>
       )}
       {deleteConfirm && (
-        <div className="modal-backdrop">
-          <div
-            className="panel modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-title"
-          >
-            <Trash2 size={24} />
-            <h2 id="delete-title">Delete this statement?</h2>
-            <p>
-              This removes {statement?.filename} and its review history from
-              this device. Your source CSV is unaffected. This cannot be undone.
-            </p>
-            <div className="button-row">
-              <button
-                autoFocus
-                className="button secondary"
-                disabled={saving}
-                onClick={() => setDeleteConfirm(false)}
-              >
-                Keep statement
-              </button>
-              <button
-                className="button destructive"
-                disabled={saving}
-                onClick={() => void remove()}
-              >
-                Delete statement
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteDialog
+          filename={statement?.filename || "this statement"}
+          busy={saving}
+          onCancel={() => setDeleteConfirm(false)}
+          onConfirm={() => void remove()}
+        />
       )}
     </div>
   );

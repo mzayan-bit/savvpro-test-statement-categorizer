@@ -56,3 +56,11 @@ def initialize():
             raise RuntimeError("Database schema is newer than this application.")
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
+
+
+@contextmanager
+def read_snapshot():
+    """Keep related reads on one SQLite snapshot, even while another tab commits an edit."""
+    with connect() as conn:
+        conn.execute("BEGIN")
+        yield conn

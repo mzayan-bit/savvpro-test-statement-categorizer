@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
-from .database import connect, initialize
+from .database import initialize, read_snapshot
 from .domain import CATEGORIES, KIND_CATEGORIES, MAX_FILE_BYTES, ImportOptions, ReviewRequest
 from .importer import ImportFailure, preview
 from .service import (
@@ -22,6 +22,7 @@ from .service import (
     statement_summary,
     storage_error_handler,
 )
+from .summaries import summarize
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -114,7 +115,7 @@ async def create_statement(file: Annotated[UploadFile, File()], options: Annotat
 
 @app.get("/api/statements")
 def list_statements():
-    with connect() as conn:
+    with read_snapshot() as conn:
         rows = conn.execute(
             "SELECT id FROM statements ORDER BY created_at DESC, rowid DESC"
         ).fetchall()
@@ -129,8 +130,17 @@ def list_statements():
 
 @app.get("/api/statements/{statement_id}")
 def statement(statement_id: str):
-    with connect() as conn:
+    with read_snapshot() as conn:
         return get_statement(conn, statement_id)
+
+
+@app.get("/api/statements/{statement_id}/workspace")
+def workspace(statement_id: str):
+    with read_snapshot() as conn:
+        metadata = get_statement(conn, statement_id)
+        rows = get_transactions(conn, statement_id)
+        report = {**summarize(rows), "currency": metadata["currency"]}
+        return {"statement": metadata, "transactions": rows, "summary": report}
 
 
 @app.get("/api/statements/{statement_id}/transactions")
@@ -142,7 +152,7 @@ def transactions(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=5000)] = 100,
 ):
-    with connect() as conn:
+    with read_snapshot() as conn:
         get_statement(conn, statement_id)
         rows = get_transactions(conn, statement_id)
     if search:
@@ -173,7 +183,7 @@ def review(transaction_id: str, body: ReviewRequest):
 
 @app.get("/api/transactions/{transaction_id}/history")
 def history(transaction_id: str):
-    with connect() as conn:
+    with read_snapshot() as conn:
         if not conn.execute(
             "SELECT id FROM transactions WHERE id = ?", (transaction_id,)
         ).fetchone():
@@ -190,7 +200,7 @@ def history(transaction_id: str):
 
 @app.get("/api/statements/{statement_id}/summary")
 def summary(statement_id: str):
-    with connect() as conn:
+    with read_snapshot() as conn:
         return statement_summary(conn, statement_id)
 
 
@@ -215,10 +225,10 @@ def export(
     kind: Literal["transactions", "summary"] = "transactions",
     reviewed_only: bool = False,
 ):
-    with connect() as conn:
+    with read_snapshot() as conn:
         statement = get_statement(conn, statement_id)
         rows = get_transactions(conn, statement_id)
-        report = statement_summary(conn, statement_id)
+        report = {**summarize(rows), "currency": statement["currency"]}
     if reviewed_only and report["provisional"]:
         raise HTTPException(409, "Resolve every review item before exporting a reviewed statement.")
     stream = io.StringIO(newline="")
