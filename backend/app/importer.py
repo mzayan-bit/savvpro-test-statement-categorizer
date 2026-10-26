@@ -78,6 +78,8 @@ def parse_amount(raw: str) -> int:
     value = raw.strip()
     if not value:
         raise ValueError("Amount is required.")
+    if len(value) > 40:
+        raise ValueError("Amount is too long; maximum 40 characters.")
     if value.startswith("(") and value.endswith(")"):
         value = "-" + value[1:-1]
     # Commas must be correctly grouped; disallow symbols, exponents and decimal commas.
@@ -134,6 +136,14 @@ def parse_statement(content: bytes, options: ImportOptions):
     results, errors = [], []
     for line, cells in records:
         row = dict(zip(headers, cells, strict=True))
+        currency_columns = [h for h in headers if h.casefold() == "currency"]
+        if any(
+            row[h].strip() and row[h].strip().upper() != options.currency for h in currency_columns
+        ):
+            errors.append(
+                fail("Row currency differs from the selected statement currency.", line, "currency")
+            )
+            continue
         try:
             raw_date = row[options.date_column].strip()
             if not re.fullmatch(patterns[options.date_format], raw_date):
@@ -142,8 +152,8 @@ def parse_statement(content: bytes, options: ImportOptions):
         except ValueError:
             errors.append(fail("Invalid date for the selected format.", line, "date"))
             continue
-        description = row[options.description_column].strip()
-        if not description or len(description) > 1000:
+        description = row[options.description_column]
+        if not description.strip() or len(description) > 1000:
             errors.append(fail("Description must contain 1–1,000 characters.", line, "description"))
             continue
         try:

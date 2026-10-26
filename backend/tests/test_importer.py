@@ -106,3 +106,36 @@ def test_preview_suggests_only_columns():
     result = preview(b"Date,Description,Amount\n2026-01-01,A,-1")
     assert result["suggestions"]["amount_column"] == "Amount"
     assert result["row_count"] == 1
+
+
+def test_raw_description_preserved():
+    rows, _ = parse_statement(b"Date,Description,Amount\n2026-01-01,  FiGMA  ,1", options())
+    assert rows[0].description == "  FiGMA  "
+
+
+def test_oversized_number_is_validation_error():
+    with pytest.raises(ValueError):
+        parse_amount("9" * 10000)
+
+
+def test_row_limit():
+    content = b"Date,Description,Amount\n" + b"2026-01-01,Figma,-1\n" * 5001
+    with pytest.raises(ImportFailure):
+        parse_statement(content, options())
+
+
+@pytest.mark.parametrize("debit,credit", [("1", "1"), ("-1", ""), ("", ""), ("", "-5")])
+def test_invalid_split_layout(debit, credit):
+    config = options(mode="split", debit_column="Debit", credit_column="Credit")
+    with pytest.raises(ImportFailure):
+        parse_statement(
+            f"Date,Description,Debit,Credit\n2026-01-01,A,{debit},{credit}".encode(), config
+        )
+
+
+def test_explicit_currency_column_must_match_statement():
+    content = b"Date,Description,Amount,Currency\n2026-01-01,Figma,-1,EUR"
+    with pytest.raises(ImportFailure) as exc:
+        parse_statement(content, options(currency="USD"))
+    assert exc.value.errors[0]["field"] == "currency"
+    assert parse_statement(content, options(currency="EUR"))[0][0].amount_minor == -100

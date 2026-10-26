@@ -184,3 +184,57 @@ def test_duplicate_correction_does_not_resolve_duplicate_warning(client):
     assert result["reviewed"] and result["needs_review"]
     result = patch(client, result, action="duplicate", duplicate_action="keep").json()
     assert result["reviewed"] and not result["needs_review"]
+
+
+def test_bom_prefixed_formula_is_escaped(client):
+    sid = upload(client, "2026-10-01,\ufeff=1+1,-10\n").json()["statement"]["id"]
+    content = client.get(f"/api/statements/{sid}/export").text.lstrip("\ufeff")
+    assert next(csv.DictReader(io.StringIO(content)))["description"].startswith("'")
+
+
+def test_corrections_survive_application_lifespan_restart(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    monkeypatch.setenv("LEDGERLENS_DB", str(tmp_path / "restart.db"))
+    with TestClient(app) as first:
+        sid = upload(first, "2026-10-01,UNFAMILIAR,-123.45").json()["statement"]["id"]
+        row = rows(first, sid)[0]
+        assert patch(first, row, action="save", kind="expense", category="other").status_code == 200
+    with TestClient(app) as restarted:
+        persisted = rows(restarted, sid)[0]
+        assert persisted["reviewed"] and persisted["category"] == "other"
+        assert persisted["decision"]["category"] == "uncategorized"
+        report = restarted.get(f"/api/statements/{sid}/summary").json()
+        assert report["totals"]["net_expense_minor"] == 12345
+        assert not report["provisional"]
+
+
+def test_concurrent_stale_updates_allow_exactly_one_winner(client):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from fastapi import HTTPException
+
+    from app.domain import ReviewRequest
+    from app.service import review_transaction
+
+    sid = upload(client).json()["statement"]["id"]
+    row = rows(client, sid)[0]
+
+    def update(category):
+        try:
+            review_transaction(
+                row["id"],
+                ReviewRequest(
+                    action="save", kind="expense", category=category, version=row["version"]
+                ),
+            )
+            return 200
+        except HTTPException as exc:
+            return exc.status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(update, ["office", "software"]))
+    assert sorted(outcomes) == [200, 409]
+    assert len(client.get(f"/api/transactions/{row['id']}/history").json()) == 1

@@ -196,9 +196,9 @@ def summary(statement_id: str):
 
 def safe_text(value):
     text = str(value)
-    if text.lstrip().startswith(("=", "+", "-", "@", "\t", "\r", "\n")) or text.startswith(
-        ("\t", "\r", "\n")
-    ):
+    if text.lstrip().lstrip("\ufeff").lstrip().startswith(
+        ("=", "+", "-", "@", "\t", "\r", "\n")
+    ) or text.startswith(("\t", "\r", "\n")):
         return "'" + text
     return text
 

@@ -1,0 +1,24 @@
+{
+  "captured_at_utc": "2026-10-26T12:56:03.176723+00:00",
+  "source": "Codex local session event_msg/token_count; sanitized metadata only",
+  "scope": "This primary session, including assessment planning and implementation up to snapshot",
+  "models": [
+    {
+      "model": "gpt-6-astra",
+      "reasoning_effort": "medium"
+    }
+  ],
+  "latest": {
+    "timestamp": "2026-10-26T12:55:21.001Z",
+    "cumulative": {
+      "input_tokens": 7212987,
+      "cached_input_tokens": 7091840,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 77529,
+      "reasoning_output_tokens": 7339,
+      "total_tokens": 7290516
+    }
+  },
+  "counter_samples_observed": 62,
+  "accounting_note": "Cumulative snapshot, not the sum of snapshots. Cached input is a subset of input. Reasoning output is a subset of output. Not a price or quota estimate."
+}
