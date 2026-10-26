@@ -179,6 +179,8 @@ def storage_error_handler(_request, _error: sqlite3.OperationalError):
     return JSONResponse(
         status_code=503,
         content={
-            "detail": "Local storage is unavailable or busy. Try again; no partial change was saved."
+            "detail": (
+                "Local storage is unavailable or busy. Try again; no partial change was saved."
+            )
         },
     )

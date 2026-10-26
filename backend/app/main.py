@@ -298,7 +298,9 @@ def export(
         "\ufeff" + stream.getvalue(),
         media_type="text/csv; charset=utf-8",
         headers={
-            "Content-Disposition": f'attachment; filename="ledgerlens-{kind}-{statement_id[:8]}.csv"'
+            "Content-Disposition": (
+                f'attachment; filename="ledgerlens-{kind}-{statement_id[:8]}.csv"'
+            )
         },
     )
 
